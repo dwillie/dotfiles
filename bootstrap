@@ -1,0 +1,3 @@
+#!/bin/bash
+
+DOTFILES_REPOS='https://github.com/dstil/dotfiles' source <(curl -s https://raw.githubusercontent.com/rimmington/dothooks/master/bootstrap)
