@@ -1,3 +1,5 @@
 ls files | while read f; do
     cat files/$f >> ~/.$f
 done
+
+ensure_shell_sources ~/.envvars
