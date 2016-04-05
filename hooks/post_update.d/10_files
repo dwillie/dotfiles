@@ -1,5 +1,4 @@
-ls files | while read f; do
-    cat files/$f >> ~/.$f
-done
-
+cat files/envvars >> ~/.envvars
 ensure_shell_sources ~/.envvars
+
+ensure_shell_sources $HERE_LIB/files/functions
