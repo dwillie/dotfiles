@@ -8,6 +8,16 @@ bail() {
     exit 1
 }
 
+gitBehindRemote() {
+    git remote update >/dev/null
+    local oldrev=$(git rev-parse HEAD)
+    if [[ $oldrev != $(git rev-parse @{u}) ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 top=$(git rev-parse --show-toplevel)
 if [ ! -e $top/.overcommit.yml ]; then
     bail "Missing .overcommit.yml"
@@ -16,3 +26,13 @@ fi
 if ! grep -Pzq "^(\s+)OvercommitConfig:\n\1\s+enabled: true" "$top/.overcommit.yml"; then
     bail ".overcommit.yml must contain the following:\nPreCommit:\n  OvercommitConfig:\n    enabled: true"
 fi
+
+if [ ! -e $top/.git-hooks/.git ]; then
+    bail ".git-hooks is not a Git repository or submodule. Run:\ngit submodule add https://github.com/dstil/git-hooks $top/.git-hooks"
+fi
+
+pushd $top/.git-hooks >/dev/null
+    if gitBehindRemote; then
+        bail ".git-hooks is not up to date. Run:\ngit submodule foreach git pull"
+    fi
+popd >/dev/null
