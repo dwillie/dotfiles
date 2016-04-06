@@ -28,7 +28,7 @@ if ! grep -Pzq "^(\s+)OvercommitConfig:\n\1\s+enabled: true" "$top/.overcommit.y
 fi
 
 if [ ! -e $top/.git-hooks/.git ]; then
-    bail ".git-hooks is not a Git repository or submodule. Run:\ngit submodule add https://github.com/dstil/git-hooks $top/.git-hooks"
+    bail ".git-hooks is not a Git repository or submodule. Run:\nGIT_TEMPLATE_DIR='' git submodule add https://github.com/dstil/git-hooks $top/.git-hooks"
 fi
 
 pushd $top/.git-hooks >/dev/null
