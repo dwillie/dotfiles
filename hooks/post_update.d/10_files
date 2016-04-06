@@ -1,4 +1,4 @@
 cat files/envvars >> ~/.envvars
 ensure_shell_sources ~/.envvars
 
-ensure_shell_sources $HERE_LIB/files/functions
+ensure_shell_sources $HERE_LIB/files/aliases
