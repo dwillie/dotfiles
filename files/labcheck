@@ -20,7 +20,7 @@ gitBehindRemote() {
 
 top=$(git rev-parse --show-toplevel)
 if [ ! -e $top/.overcommit.yml ]; then
-    bail "Missing .overcommit.yml"
+    bail "Missing .overcommit.yml. Run:\nwget https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml -O $top/.overcommit.yml"
 fi
 
 if ! grep -Pzq "^(\s+)OvercommitConfig:\n\1\s+enabled: true" "$top/.overcommit.yml"; then
