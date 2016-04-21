@@ -20,10 +20,11 @@ gitBehindRemote() {
 
 top=$(git rev-parse --show-toplevel)
 if [ ! -e $top/.overcommit.yml ]; then
-    bail "Missing .overcommit.yml. Run:\nwget https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml -O $top/.overcommit.yml"
+    bail "Missing .overcommit.yml. Run:\ncurl -s https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml > $top/.overcommit.yml"
 fi
 
-if ! grep -Pzq "^(\s+)OvercommitConfig:\n\1\s+enabled: true" "$top/.overcommit.yml"; then
+# Have to use perl because OSX grep is useless
+if ! perl -n000e 'exit ! (/^(\s+)OvercommitConfig:\n\1\s+enabled: true$/m)' "$top/.overcommit.yml"; then
     bail ".overcommit.yml must contain the following:\nPreCommit:\n  OvercommitConfig:\n    enabled: true"
 fi
 
