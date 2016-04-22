@@ -41,6 +41,10 @@ def deepset(d, key, value):
         dd = dd.setdefault(k, {})
     dd[latest] = value
 
+def silent_call(*args, **kwargs):
+    with open(os.devnull, 'w') as f:
+        subprocess.check_call(*args, stdout=f, **kwargs)
+
 def check_overcommit(fix=False, will_sign=False):
     fn = '.overcommit.yml'
     exists = os.path.exists(fn)
@@ -60,7 +64,7 @@ def check_overcommit(fix=False, will_sign=False):
                         f.seek(0)
                         f.truncate()
                         f.write(yaml.dump(y, Dumper=yaml.RoundTripDumper))
-                        subprocess.check_call(['git', 'add', '.overcommit.yml'])
+                        silent_call(['git', 'add', '.overcommit.yml'])
                         warn_sign(will_sign)
                     else:
                         return '.overcommit.yml must contain:\nPreCommit:\n  OvercommitConfig:\n    enabled: true'
@@ -68,7 +72,7 @@ def check_overcommit(fix=False, will_sign=False):
     else:
         if fix:
             urllib.urlretrieve('https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml', fn)
-            subprocess.check_call(['git', 'add', '.overcommit.yml'])
+            silent_call(['git', 'add', '.overcommit.yml'])
             warn_sign(will_sign)
         else:
             return ".overcommit.yml does not exist"
@@ -77,8 +81,7 @@ def check_git_hooks_behind(hooks_dir, fix=False, will_sign=False):
     d = os.getcwd()
     try:
         os.chdir(hooks_dir)
-        # Suppress output
-        subprocess.check_output(['git', 'remote', 'update'])
+        silent_call(['git', 'remote', 'update'])
         cur_head = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
         remote_head = subprocess.check_output(['git', 'rev-parse', '@{u}']).strip()
         if cur_head != remote_head:
@@ -128,9 +131,9 @@ def run_checks(checks, fix=False, will_sign=False):
     return True
 
 def overcommit_sign():
-    subprocess.check_call(['overcommit', '--sign'])
+    silent_call(['overcommit', '--sign'])
     for hk in ['pre-commit', 'commit-msg', 'pre-push']:
-        subprocess.check_call(['overcommit', '--sign', hk])
+        silent_call(['overcommit', '--sign', hk])
 
 def main():
     toplevel = git_toplevel()
