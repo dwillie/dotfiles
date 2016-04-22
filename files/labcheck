@@ -11,7 +11,13 @@ import ruamel.yaml as yaml
 NAME='dstil'
 
 def git_toplevel():
-    return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    try:
+        return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    except subprocess.CalledProcessError, e:
+        if e.returncode == 128: # Probably not a git repo
+            return None
+        else:
+            raise
 
 def errol(msg):
     red = os.environ.get('COLOUR_ERROR', '38;5;196m')
@@ -106,8 +112,16 @@ def run_checks(checks, fix=False):
             return False
     return True
 
-if __name__ == '__main__':
-    os.chdir(git_toplevel())
+def main():
+    toplevel = git_toplevel()
+    if not toplevel:
+        # Git already provides an error message
+        return
+
+    os.chdir(toplevel)
     fix = (sys.argv[1:2] or [None])[0] == '--fix'
     if not run_checks([check_overcommit, check_overcommit_hooks, check_git_hooks], fix=fix) and not fix:
         print('Try to fix with {} --fix'.format(NAME))
+
+if __name__ == '__main__':
+    main()
