@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import filecmp
+import functools
 import os
 import os.path
 import subprocess
@@ -19,9 +20,18 @@ def git_toplevel():
         else:
             raise
 
-def errol(msg):
-    red = os.environ.get('COLOUR_ERROR', '38;5;196m')
-    print('\033[{}{}\033[0m'.format(red, msg))
+def print_colour(colour, msg):
+    print('\033[{}{}\033[0m'.format(colour, msg))
+
+errol = functools.partial(print_colour, os.environ.get('COLOUR_ERROR', '38;5;196m'))
+warn = functools.partial(print_colour, '93m')
+
+def cmd_emphasis(msg):
+    return '\033[1m{}\033[21m'.format(msg)
+
+def warn_sign(will_sign):
+    if not will_sign:
+        warn('Overcommit hooks changed. You may want to run ' + cmd_emphasis(NAME + ' --sign') + '.')
 
 def deepset(d, key, value):
     dd = d
@@ -31,7 +41,7 @@ def deepset(d, key, value):
         dd = dd.setdefault(k, {})
     dd[latest] = value
 
-def check_overcommit(fix=False):
+def check_overcommit(fix=False, will_sign=False):
     fn = '.overcommit.yml'
     exists = os.path.exists(fn)
 
@@ -50,16 +60,20 @@ def check_overcommit(fix=False):
                         f.seek(0)
                         f.truncate()
                         f.write(yaml.dump(y, Dumper=yaml.RoundTripDumper))
+                        subprocess.check_call(['git', 'add', '.overcommit.yml'])
+                        warn_sign(will_sign)
                     else:
                         return '.overcommit.yml must contain:\nPreCommit:\n  OvercommitConfig:\n    enabled: true'
 
     else:
         if fix:
             urllib.urlretrieve('https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml', fn)
+            subprocess.check_call(['git', 'add', '.overcommit.yml'])
+            warn_sign(will_sign)
         else:
             return ".overcommit.yml does not exist"
 
-def check_git_hooks_behind(hooks_dir, fix=False):
+def check_git_hooks_behind(hooks_dir, fix=False, will_sign=False):
     d = os.getcwd()
     try:
         os.chdir(hooks_dir)
@@ -75,7 +89,7 @@ def check_git_hooks_behind(hooks_dir, fix=False):
     finally:
         os.chdir(d)
 
-def check_git_hooks(fix=False):
+def check_git_hooks(fix=False, will_sign=False):
     hooks_dir = '.git-hooks'
     if os.path.isdir(hooks_dir):
         return check_git_hooks_behind(hooks_dir, fix=fix)
@@ -86,7 +100,7 @@ def check_git_hooks(fix=False):
     else:
         return '.git-hooks does not exist'
 
-def check_overcommit_hooks(fix=False):
+def check_overcommit_hooks(fix=False, will_sign=False):
     try:
         overcommit_template = subprocess.check_output(['overcommit', '--template-dir']).strip()
     except OSError, e:
@@ -101,16 +115,22 @@ def check_overcommit_hooks(fix=False):
     if (cmpd.left_only or cmpd.diff_files):
         if fix:
             subprocess.check_call(['overcommit', '--install'])
+            warn_sign(will_sign)
         else:
             return 'Overcommit hooks not initialised in this repository'
 
-def run_checks(checks, fix=False):
+def run_checks(checks, fix=False, will_sign=False):
     for check in checks:
-        msg = check(fix=fix)
+        msg = check(fix=fix, will_sign=will_sign)
         if msg:
             errol(msg)
             return False
     return True
+
+def overcommit_sign():
+    subprocess.check_call(['overcommit', '--sign'])
+    for hk in ['pre-commit', 'commit-msg', 'pre-push']:
+        subprocess.check_call(['overcommit', '--sign', hk])
 
 def main():
     toplevel = git_toplevel()
@@ -119,9 +139,12 @@ def main():
         return
 
     os.chdir(toplevel)
-    fix = (sys.argv[1:2] or [None])[0] == '--fix'
-    if not run_checks([check_overcommit, check_overcommit_hooks, check_git_hooks], fix=fix) and not fix:
-        print('Try to fix with {} --fix'.format(NAME))
+    fix = '--fix' in sys.argv[1:]
+    sign = '--sign' in sys.argv[1:]
+    if not run_checks([check_overcommit, check_overcommit_hooks, check_git_hooks], fix=fix, will_sign=sign) and not fix:
+        print('Try to fix with ' + cmd_emphasis(NAME + ' --fix'))
+    if sign:
+        overcommit_sign()
 
 if __name__ == '__main__':
     main()
