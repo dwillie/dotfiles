@@ -1,39 +1,92 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env python
 
-bail() {
-    local reset_colour='\e[0m'
-    local red="${COLOUR_ERROR:-\e[38;5;196m}"
-    echo -e "${red}$1${reset_colour}"
-    exit 1
-}
+import os
+import os.path
+import subprocess
+import sys
+import urllib
+import yaml
 
-gitBehindRemote() {
-    git remote update >/dev/null
-    local oldrev=$(git rev-parse HEAD)
-    if [[ $oldrev != $(git rev-parse @{u}) ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
+def git_toplevel():
+    return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip()
 
-top=$(git rev-parse --show-toplevel)
-if [ ! -e $top/.overcommit.yml ]; then
-    bail "Missing .overcommit.yml. Run:\ncurl -s https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml > $top/.overcommit.yml"
-fi
+def errol(msg):
+    red = os.environ.get('COLOUR_ERROR', '38;5;196m')
+    print('\033[{}{}\033[0m'.format(red, msg))
 
-# Have to use perl because OSX grep is useless
-if ! perl -n000e 'exit ! (/^(\s+)OvercommitConfig:\n\1\s+enabled: true$/m)' "$top/.overcommit.yml"; then
-    bail ".overcommit.yml must contain the following:\nPreCommit:\n  OvercommitConfig:\n    enabled: true"
-fi
+def deepset(d, key, value):
+    dd = d
+    keys = key.split('.')
+    latest = keys.pop()
+    for k in keys:
+        dd = dd.setdefault(k, {})
+    dd[latest] = value
 
-if [ ! -e $top/.git-hooks/.git ]; then
-    bail ".git-hooks is not a Git repository or submodule. Run:\nGIT_TEMPLATE_DIR='' git submodule add https://github.com/dstil/git-hooks $top/.git-hooks"
-fi
+def check_overcommit(fix=False):
+    fn = '.overcommit.yml'
+    exists = os.path.exists(fn)
 
-pushd $top/.git-hooks >/dev/null
-    if gitBehindRemote; then
-        bail ".git-hooks is not up to date. Run:\ngit submodule foreach git pull"
-    fi
-popd >/dev/null
+    if exists:
+        if not os.path.isfile(fn):
+            return ".overcommit.yml exists and is not a file"
+        else:
+            with open(fn, 'r+') as f:
+                y = yaml.load(f)
+                try:
+                    if y['PreCommit']['OvercommitConfig']['enabled'] != True:
+                        raise KeyError()
+                except KeyError:
+                    if fix:
+                        deepset(y, 'PreCommit.OvercommitConfig.enabled', True)
+                        f.seek(0)
+                        f.truncate()
+                        f.write(yaml.dump(y, default_flow_style=False))
+                    else:
+                        return '.overcommit.yml must contain:\nPreCommit:\n  OvercommitConfig:\n    enabled: true'
+
+    else:
+        if fix:
+            urllib.urlretrieve('https://raw.githubusercontent.com/dstil/git-hooks/master/.overcommit.yml', fn)
+        else:
+            return ".overcommit.yml does not exist"
+
+def check_git_hooks_behind(hooks_dir, fix=False):
+    d = os.getcwd()
+    try:
+        os.chdir(hooks_dir)
+        # Suppress output
+        subprocess.check_output(['git', 'remote', 'update'])
+        cur_head = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        remote_head = subprocess.check_output(['git', 'rev-parse', '@{u}']).strip()
+        if cur_head != remote_head:
+            if fix:
+                subprocess.check_call(['git', 'pull'])
+            else:
+                return '.git-hooks is not up to date'
+    finally:
+        os.chdir(d)
+
+def check_git_hooks(fix=False):
+    hooks_dir = '.git-hooks'
+    if os.path.isdir(hooks_dir):
+        return check_git_hooks_behind(hooks_dir, fix=fix)
+    elif fix:
+        nenv = os.environ.copy()
+        nenv['GIT_TEMPLATE_DIR'] = ''
+        subprocess.check_call(['git', 'submodule', 'add', 'https://github.com/dstil/git-hooks', hooks_dir], env=nenv)
+    else:
+        return '.git-hooks does not exist'
+
+def run_checks(checks, fix=False):
+    for check in checks:
+        msg = check(fix=fix)
+        if msg:
+            errol(msg)
+            return False
+    return True
+
+if __name__ == '__main__':
+    os.chdir(git_toplevel())
+    fix = (sys.argv[1:2] or [None])[0] == '--fix'
+    if not run_checks([check_overcommit, check_git_hooks], fix=fix) and not fix:
+        print('Try to fix with {} --fix'.format(sys.argv[0]))
