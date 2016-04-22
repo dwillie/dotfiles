@@ -1,1 +1,1 @@
-alias labcheck="bash $(dirname ${BASH_SOURCE[0]:-${(%):-%x}})/labcheck"
+alias dstil="$(dirname ${BASH_SOURCE[0]:-${(%):-%x}})/labcheck"
