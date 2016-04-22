@@ -6,7 +6,7 @@ import os.path
 import subprocess
 import sys
 import urllib
-import yaml
+import ruamel.yaml as yaml
 
 def git_toplevel():
     return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip()
@@ -32,7 +32,7 @@ def check_overcommit(fix=False):
             return ".overcommit.yml exists and is not a file"
         else:
             with open(fn, 'r+') as f:
-                y = yaml.load(f)
+                y = yaml.load(f, yaml.RoundTripLoader)
                 try:
                     if y['PreCommit']['OvercommitConfig']['enabled'] != True:
                         raise KeyError()
@@ -41,7 +41,7 @@ def check_overcommit(fix=False):
                         deepset(y, 'PreCommit.OvercommitConfig.enabled', True)
                         f.seek(0)
                         f.truncate()
-                        f.write(yaml.dump(y, default_flow_style=False))
+                        f.write(yaml.dump(y, Dumper=yaml.RoundTripDumper))
                     else:
                         return '.overcommit.yml must contain:\nPreCommit:\n  OvercommitConfig:\n    enabled: true'
 
