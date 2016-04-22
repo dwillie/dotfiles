@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import filecmp
 import os
 import os.path
 import subprocess
@@ -77,6 +78,24 @@ def check_git_hooks(fix=False):
     else:
         return '.git-hooks does not exist'
 
+def check_overcommit_hooks(fix=False):
+    try:
+        overcommit_template = subprocess.check_output(['overcommit', '--template-dir']).strip()
+    except OSError, e:
+        if e.errno == 2:
+            if fix:
+                return 'No, you:\n  gem install overcommit'
+            else:
+                return 'Overcommit is not installed'
+        else:
+            raise
+    cmpd = filecmp.dircmp(overcommit_template + '/hooks', '.git/hooks')
+    if (cmpd.left_only or cmpd.diff_files):
+        if fix:
+            subprocess.check_call(['overcommit', '--install'])
+        else:
+            return 'Overcommit hooks not initialised in this repository'
+
 def run_checks(checks, fix=False):
     for check in checks:
         msg = check(fix=fix)
@@ -88,5 +107,5 @@ def run_checks(checks, fix=False):
 if __name__ == '__main__':
     os.chdir(git_toplevel())
     fix = (sys.argv[1:2] or [None])[0] == '--fix'
-    if not run_checks([check_overcommit, check_git_hooks], fix=fix) and not fix:
+    if not run_checks([check_overcommit, check_overcommit_hooks, check_git_hooks], fix=fix) and not fix:
         print('Try to fix with {} --fix'.format(sys.argv[0]))
